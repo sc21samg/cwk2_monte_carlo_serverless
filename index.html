@@ -1,0 +1,506 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="UTF-8">
+  <title>Monte Carlo π Estimator</title>
+
+  <style>
+    .graph-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 30px;
+      margin-top: 20px;
+    }
+  
+    .graph-container {
+      flex: 1 1 48%;
+      max-width: 48%;
+      min-width: 400px;
+    }
+  
+    canvas {
+      width: 100% !important;
+      height: 400px !important;
+    }
+  </style>
+  
+
+</head>
+<body>
+  <h1>Estimate π using Monte Carlo</h1>
+
+  <div style="display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap;">
+    <!-- Main Form -->
+    <form id="piForm" style="flex: 1;">
+      <label for="points">Number of Points:</label>
+      <button type="button" onclick="decreasePoints()">-10x</button>
+      <input type="number" id="points" name="points" value="1000000" required>
+      <button type="button" onclick="increasePoints()">+10x</button>
+      <br><br>
+  
+      <label for="threads">Number of Threads:</label>
+      <button type="button" onclick="decreaseThreads()">-1</button>
+      <input type="number" id="threads" name="threads" value="4" required min="1" max="16">
+      <button type="button" onclick="increaseThreads()">+1</button>
+      <br><br>
+  
+      <label for="concurrent">Concurrent Users:</label>
+      <button type="button" onclick="decreaseUsers()">-1</button>
+      <input type="number" id="concurrent" name="concurrent" value="1" min="1" max="100">
+      <button type="button" onclick="increaseUsers()">+1</button>
+      <br><br>
+  
+      <button type="submit">Estimate π</button>
+    </form>
+  
+    <!-- Cold vs Warm Section -->
+    <div style="flex: 1; min-width: 300px;">
+      <button type="button" onclick="coldWarmTest()">Run Cold vs Warm Test</button>
+      <br><br>
+      <div id="coldWarmResult" style="font-family: monospace; background: #eef; padding: 10px; border: 1px solid #99f;"></div>
+    </div>
+  </div>
+  
+
+  <h2>Result</h2>
+  <div id="result" style="font-family: monospace; background: #f3f3f3; padding: 10px; border: 1px solid #ccc;"></div>
+  <br><br>
+
+  <h2>Test History</h2>
+  <button type="button" onclick="clearTestHistory()">Clear Test History</button>
+  <br><br>
+  <table id="historyTable" border="1" cellpadding="5" style="border-collapse: collapse;">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Points</th>
+        <th>Threads</th>
+        <th>Users</th>
+        <th>π Estimate</th>
+        <th>Exec Time (s)</th>
+        <th>Error Margin</th>
+        <th>Total Time (s)</th>
+      </tr>
+    </thead>
+    <tbody id="historyBody">
+      <!-- Test logs will go here -->
+    </tbody>
+  </table>
+  
+
+
+  <!-- <h2>Graph: π Estimate vs Request</h2>
+  <canvas id="piChart" width="800" height="300"></canvas>
+
+  <h2>Graph: Execution Time vs Request</h2>
+  <canvas id="execChart" width="800" height="300"></canvas>
+
+  <h2>Graph: Error Margin vs Threads</h2>
+  <canvas id="errorChart" width="800" height="300"></canvas>
+
+  <h2>Graph: Total Test Time vs Concurrent Users</h2>
+  <canvas id="scaleChart" width="800" height="300"></canvas> -->
+
+  <h2>Graph Dashboard</h2>
+  <div class="graph-grid">
+    <div class="graph-container">
+      <h3>π Estimate vs Request</h3>
+      <canvas id="piChart"></canvas>
+    </div>
+  
+    <div class="graph-container">
+      <h3>Execution Time vs Request</h3>
+      <canvas id="execChart"></canvas>
+    </div>
+  
+    <div class="graph-container">
+      <h3>Error Margin vs Threads</h3>
+      <canvas id="errorChart"></canvas>
+    </div>
+  
+    <div class="graph-container">
+      <h3>Total Test Time vs Concurrent Users</h3>
+      <canvas id="scaleChart"></canvas>
+    </div>
+  </div>
+  
+  </div>
+
+
+
+  <script>
+    const form = document.getElementById('piForm');
+    const resultBox = document.getElementById('result');
+    const pointsInput = document.getElementById('points');
+    const threadsInput = document.getElementById('threads');
+    const concurrentInput = document.getElementById('concurrent');
+
+    // Variables for the graph 
+    let piChart, execChart;
+    const piLabels = [];
+    const piData = [];
+    const execData = [];
+    let errorChart;
+    const errorLabels = [];
+    const errorData = [];
+    let scaleChart;
+    const scaleLabels = [];
+    const scaleData = [];
+
+
+
+
+    function increasePoints() {
+      pointsInput.value = parseInt(pointsInput.value) * 10;
+    }
+
+    function decreasePoints() {
+      let currentPoints = parseInt(pointsInput.value);
+      if (currentPoints > 1000) {
+        pointsInput.value = Math.max(1000, currentPoints / 10);
+      }
+    }
+
+    function increaseThreads() {
+      let currentThreads = parseInt(threadsInput.value);
+      if (currentThreads < 16) {
+        threadsInput.value = currentThreads + 1;
+      }
+    }
+
+    function decreaseThreads() {
+      let currentThreads = parseInt(threadsInput.value);
+      if (currentThreads > 1) {
+        threadsInput.value = currentThreads - 1;
+      }
+    }
+
+    function increaseUsers() {
+      let currentUsers = parseInt(concurrentInput.value);
+      if (currentUsers < 100) {
+        concurrentInput.value = currentUsers + 1;
+      }
+    }
+
+    function decreaseUsers() {
+      let currentUsers = parseInt(concurrentInput.value);
+      if (currentUsers > 1) {
+        concurrentInput.value = currentUsers - 1;
+      }
+    }
+
+    let testLog = [];
+    let testCount = 0;
+
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const points = parseInt(pointsInput.value);
+      const threads = parseInt(threadsInput.value);
+      const concurrent = parseInt(concurrentInput.value);
+
+      // // Save scaling data
+      // scaleLabels.push(concurrent);
+      // scaleData.push(totalTestTime);
+      updateCharts(); // this keeps your chart updating
+
+      resultBox.textContent = `Running ${concurrent} concurrent requests...If any take longer than 40 seconds, they'll be marked as failed.`;
+
+      const requestBody = JSON.stringify({ points, threads });
+      const startTime = performance.now();
+
+      const requests = Array.from({ length: concurrent }, () =>
+      fetchWithTimeout('http://localhost:7071/api/montecarlo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: requestBody
+      }).then(async res => {
+        try {
+          return await res.json();
+        } catch {
+          return { error: "Invalid JSON returned" };
+        }
+      }).catch(err => ({ error: err.message }))
+
+    );
+
+
+      try {
+        const responses = await Promise.all(requests);
+        console.log("🔍 Raw responses:", responses);
+        const endTime = performance.now();
+        //4th graph
+        const totalTestTime = ((endTime - startTime) / 1000).toFixed(2);
+        scaleLabels.push(concurrent);
+        scaleData.push(totalTestTime);
+
+        let piSum = 0;
+        let timeSum = 0;
+        let successCount = 0;
+
+        updateCharts(); // now safe to call
+
+        let testRun = ++testCount;
+
+        const historyBody = document.getElementById('historyBody');
+        let errors = 0;
+
+        responses.forEach((res, i) => {
+          if (res.pi_estimate && typeof res.execution_time_seconds === 'number') {
+            successCount++;
+            piSum += res.pi_estimate;
+            timeSum += res.execution_time_seconds;
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${testRun}.${i + 1}</td>
+              <td>${points}</td>
+              <td>${threads}</td>
+              <td>${concurrent}</td>
+              <td>${res.pi_estimate.toFixed(6)}</td>
+              <td>${res.execution_time_seconds.toFixed(4)}</td>
+              <td>${res.error_margin.toFixed(10)}</td>
+              <td>${((endTime - startTime) / 1000).toFixed(2)}</td>
+            `;
+            historyBody.appendChild(row);
+
+            // Add data for graphs
+            piLabels.push(`${testRun}.${i + 1}`);
+            piData.push(res.pi_estimate);
+            execData.push(res.execution_time_seconds);
+
+            errorLabels.push(res.threads || threads); // Use actual threads if available
+            errorData.push(res.error_margin);
+
+            // Update the charts
+            updateCharts();
+
+          } else {
+            errors++;
+            console.warn("⚠️ Skipped response:", res);
+          }
+        });
+
+        const avgPi = successCount > 0 ? (piSum / successCount).toFixed(6) : "N/A";
+        const avgExec = successCount > 0 ? (timeSum / successCount).toFixed(4) : "N/A";
+
+        resultBox.innerHTML = `
+          <strong>Successful Requests:</strong> ${successCount}<br>
+          <strong>Failed Requests:</strong> ${errors}<br>
+          <strong>Average π:</strong> ${avgPi}<br>
+          <strong>Average Execution Time:</strong> ${avgExec} seconds<br>
+          <strong>Total Test Time:</strong> ${totalTestTime} seconds
+        `;
+
+
+      } catch (err) {
+        resultBox.textContent = 'Error: ' + err.message;
+      }
+    });
+
+
+    async function coldWarmTest() {
+      const points = parseInt(pointsInput.value);
+      const threads = parseInt(threadsInput.value);
+      const requestBody = JSON.stringify({ points, threads });
+
+      const coldWarmBox = document.getElementById('coldWarmResult');
+      coldWarmBox.textContent = "Testing cold + warm starts...";
+
+      let results = [];
+
+      // Send 1st request (simulated cold start)
+      const coldStartTime = performance.now();
+      const coldResponse = await fetch('http://localhost:7071/api/montecarlo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: requestBody
+      }).then(res => res.json());
+      const coldElapsed = (performance.now() - coldStartTime) / 1000;
+
+      results.push({ type: "Cold Start", time: coldElapsed.toFixed(3) });
+
+      // Send 5 warm requests back-to-back
+      for (let i = 1; i <= 5; i++) {
+        const start = performance.now();
+        await fetch('http://localhost:7071/api/montecarlo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestBody
+        }).then(res => res.json());
+        const elapsed = (performance.now() - start) / 1000;
+        results.push({ type: `Warm Request ${i}`, time: elapsed.toFixed(3) });
+      }
+
+      // Display results
+      coldWarmBox.innerHTML = `<strong>Cold vs Warm Start Results:</strong><br><br>` +
+        results.map(r => `${r.type}: ${r.time} seconds`).join("<br>");
+    }
+
+
+
+    function updateCharts() {
+      // π Estimate chart
+      if (!piChart) {
+        piChart = new Chart(document.getElementById('piChart'), {
+          type: 'line',
+          data: {
+            labels: piLabels,
+            datasets: [{
+              label: 'pi Estimate',
+              data: piData,
+              borderWidth: 2,
+              borderColor: 'blue',
+              fill: false,
+            }]
+          },
+          options: {
+            scales: {
+              y: {
+                beginAtZero: false,
+                suggestedMin: 3.1,
+                suggestedMax: 3.2
+              }
+            }
+          }
+        });
+      } else {
+        piChart.update();
+      }
+
+      // Execution Time chart
+      if (!execChart) {
+        execChart = new Chart(document.getElementById('execChart'), {
+          type: 'line',
+          data: {
+            labels: piLabels,
+            datasets: [{
+              label: 'Execution Time (s)',
+              data: execData,
+              borderWidth: 2,
+              borderColor: 'green',
+              fill: false,
+            }]
+          },
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true
+              }
+            }
+          }
+        });
+      } else {
+        execChart.update();
+      }
+
+      // Error Margin chart
+      if (!errorChart) {
+        errorChart = new Chart(document.getElementById('errorChart'), {
+          type: 'bar',
+          data: {
+            labels: errorLabels,
+            datasets: [{
+              label: 'Error Margin',
+              data: errorData,
+              backgroundColor: 'rgba(255, 99, 132, 0.6)',
+              borderColor: 'red',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true
+              }
+            }
+          }
+        });
+      } else {
+        errorChart.update();
+      }
+
+      // Scaling chart (Total Time vs Users)
+      if (!scaleChart) {
+        scaleChart = new Chart(document.getElementById('scaleChart'), {
+          type: 'bar',
+          data: {
+            labels: scaleLabels,
+            datasets: [{
+              label: 'Total Test Time (s)',
+              data: scaleData,
+              backgroundColor: 'rgba(54, 162, 235, 0.6)',
+              borderColor: 'blue',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            scales: {
+              x: {
+                title: { display: true, text: 'Concurrent Users' }
+              },
+              y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Total Time (s)' }
+              }
+            }
+          }
+        });
+      } else {
+        scaleChart.update();
+      }
+
+
+    }
+
+    function clearTestHistory() {
+      // Clear table body
+      document.getElementById('historyBody').innerHTML = '';
+
+      // Reset test counter
+      testCount = 0;
+
+      // Clear arrays
+      piLabels.length = 0;
+      piData.length = 0;
+      execData.length = 0;
+      errorLabels.length = 0;
+      errorData.length = 0;
+      scaleLabels.length = 0;
+      scaleData.length = 0;
+
+      // Reset charts
+      if (piChart) piChart.update();
+      if (execChart) execChart.update();
+      if (errorChart) errorChart.update();
+      if (scaleChart) scaleChart.update();
+    }
+
+    function fetchWithTimeout(url, options, timeout = 40000) {
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          reject(new Error("Request timed out"));
+        }, timeout);
+
+        fetch(url, options)
+          .then(response => {
+            clearTimeout(timer); // cancel timeout if success
+            resolve(response);
+          })
+          .catch(err => {
+            clearTimeout(timer); // cancel timeout if error happens early
+            reject(err);
+          });
+      });
+    }
+
+  </script>
+</body>
+</html>
+
+
