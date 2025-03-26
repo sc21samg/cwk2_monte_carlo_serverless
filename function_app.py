@@ -30,6 +30,7 @@ def estimate_pi_parallel(points: int, num_threads: int = 4):
 
     return pi_estimate, execution_time, error_margin
 
+# HTTP-triggered endpoint to estimate Pi
 @app.route(route="montecarlo")
 def estimate_pi(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Monte Carlo Pi Approximation Function Triggered.")
@@ -45,11 +46,14 @@ def estimate_pi(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400
         )
 
+    # Get values from request, or use defaults
     points = int(req_body.get("points", 1000000))  # Default: 1M points
     num_threads = int(req_body.get("threads", 4))  # Default: 4 threads
 
+    # Run the estimation
     pi_estimate, exec_time, error = estimate_pi_parallel(points, num_threads)
 
+    # Prepare and return JSON response
     response_data = {
         "pi_estimate": pi_estimate,
         "execution_time_seconds": round(exec_time, 5),
@@ -59,6 +63,7 @@ def estimate_pi(req: func.HttpRequest) -> func.HttpResponse:
 
     return func.HttpResponse(json.dumps(response_data), mimetype="application/json")
 
+# Serve static HTML page for UI
 @app.route(route="montecarlo-ui")
 def serve_html(req: func.HttpRequest) -> func.HttpResponse:
     try:
@@ -73,12 +78,21 @@ import azure.functions as func
 import os
 import json
 
+# Endpoint to save test results to a file
 @app.route(route="save-history", methods=["POST"])
 def save_history(req: func.HttpRequest) -> func.HttpResponse:
     try:
+        # Get data from request
         data = req.get_json()
         content = data.get("content")
         file_type = data.get("type", "commercial")  # 'commercial' or 'opensource'
+
+        # Check if content is valid
+        if not isinstance(content, str):
+            return func.HttpResponse(
+                "Invalid content. Expected a non-empty string.",
+                status_code=400
+            )
 
         # Create directory if it doesn't exist
         folder_path = os.path.join(os.getcwd(), "test_Results")
@@ -93,11 +107,11 @@ def save_history(req: func.HttpRequest) -> func.HttpResponse:
             f.write(content)
 
         return func.HttpResponse(
-            f" Successfully saved to test_Results/{filename}",
+            f"Successfully saved to test_Results/{filename}",
             status_code=200
         )
     except Exception as e:
         return func.HttpResponse(
-            f" Error saving history: {str(e)}",
+            f"Error saving history: {str(e)}",
             status_code=500
         )

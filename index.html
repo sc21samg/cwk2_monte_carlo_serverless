@@ -2,10 +2,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- Include Chart.js for data visualization -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <meta charset="UTF-8">
   <title>Monte Carlo π Estimator</title>
 
+  <!-- Basic styling for layout and responsiveness -->
   <style>
     .graph-grid {
       display: flex;
@@ -34,7 +36,9 @@
 
   <div style="display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap;">
     <!-- Main Form -->
+    <!-- Input form for configuring simulation -->
     <form id="piForm" style="flex: 1;">
+      <!-- Input fields and step buttons -->
       <label for="points">Number of Points:</label>
       <button type="button" onclick="decreasePoints()">-10x</button>
       <input type="number" id="points" name="points" value="1000000" required>
@@ -56,7 +60,7 @@
       <button type="submit">Estimate π</button>
     </form>
   
-    <!-- Cold vs Warm Section -->
+    <!-- Cold vs Warm Test Section -->
     <div style="flex: 1; min-width: 300px;">
       <button type="button" onclick="coldWarmTest()">Run Cold vs Warm Test</button>
       <br><br>
@@ -64,7 +68,7 @@
     </div>
   </div>
   
-
+  <!-- Display results and test history -->
   <h2>Result</h2>
   <div id="result" style="font-family: monospace; background: #f3f3f3; padding: 10px; border: 1px solid #ccc;"></div>
   <br><br>
@@ -72,6 +76,8 @@
   <h2>Test History</h2>
   <button type="button" onclick="clearTestHistory()">Clear Test History</button>
   <br><br>
+
+  <!-- Table for logging each request -->
   <table id="historyTable" border="1" cellpadding="5" style="border-collapse: collapse;">
     <thead>
       <tr>
@@ -90,13 +96,15 @@
     </tbody>
   </table>
 
+  <!-- Save history buttons -->
   <button type="button" onclick="downloadHistory('commercial')">Save Commercial Results</button>
   <button type="button" onclick="downloadHistory('opensource')">Save Open Source Results</button>
   <div id="saveStatus" style="font-family: monospace; margin-top: 10px; color: green;"></div>
 
-
+  <!-- Graph section -->
   <h2>Graph Dashboard</h2>
   <div class="graph-grid">
+    <!-- 4 graph containers -->
     <div class="graph-container">
       <h3>π Estimate vs Request</h3>
       <canvas id="piChart"></canvas>
@@ -121,6 +129,7 @@
   </div>
   
   <script>
+    // Form and input elements
     const form = document.getElementById('piForm');
     const resultBox = document.getElementById('result');
     const pointsInput = document.getElementById('points');
@@ -139,7 +148,7 @@
     const scaleLabels = [];
     const scaleData = [];
 
-
+    // Input step buttons
     function increasePoints() {
       pointsInput.value = parseInt(pointsInput.value) * 10;
     }
@@ -182,7 +191,7 @@
     let testLog = [];
     let testCount = 0;
 
-
+    // Handle form submit: run Monte Carlo tests
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
@@ -193,10 +202,10 @@
       updateCharts(); // this keeps your chart updating
 
       resultBox.textContent = `Running ${concurrent} concurrent requests...If any take longer than 40 seconds, they'll be marked as failed.`;
-
       const requestBody = JSON.stringify({ points, threads });
       const startTime = performance.now();
 
+      // Fire concurrent requests
       const requests = Array.from({ length: concurrent }, () =>
       fetchWithTimeout('http://localhost:7071/api/montecarlo', {
         method: 'POST',
@@ -240,6 +249,8 @@
             successCount++;
             piSum += res.pi_estimate;
             timeSum += res.execution_time_seconds;
+
+            // Add row to history table
             const row = document.createElement('tr');
             row.innerHTML = `
               <td>${testRun}.${i + 1}</td>
@@ -257,7 +268,6 @@
             piLabels.push(`${testRun}.${i + 1}`);
             piData.push(res.pi_estimate);
             execData.push(res.execution_time_seconds);
-
             errorLabels.push(res.threads || threads); // Use actual threads if available
             errorData.push(res.error_margin);
 
@@ -273,6 +283,7 @@
         const avgPi = successCount > 0 ? (piSum / successCount).toFixed(6) : "N/A";
         const avgExec = successCount > 0 ? (timeSum / successCount).toFixed(4) : "N/A";
 
+        // Display summary
         resultBox.innerHTML = `
           <strong>Successful Requests:</strong> ${successCount}<br>
           <strong>Failed Requests:</strong> ${errors}<br>
@@ -287,7 +298,7 @@
       }
     });
 
-
+    // Run a cold + warm start test
     async function coldWarmTest() {
       const points = parseInt(pointsInput.value);
       const threads = parseInt(threadsInput.value);
@@ -327,7 +338,7 @@
     }
 
 
-
+    // Update or initialize all charts
     function updateCharts() {
       // π Estimate chart
       if (!piChart) {
@@ -442,6 +453,7 @@
 
     }
 
+    // Clear test history and reset graphs
     function clearTestHistory() {
       // Clear table body
       document.getElementById('historyBody').innerHTML = '';
@@ -465,6 +477,7 @@
       if (scaleChart) scaleChart.update();
     }
 
+    // Adds timeout to fetch requests
     function fetchWithTimeout(url, options, timeout = 40000) {
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
@@ -483,6 +496,7 @@
       });
     }
 
+    // Send history to backend for saving
     function downloadHistory(type) {
       const rows = Array.from(document.querySelectorAll("#historyTable tbody tr"));
       if (rows.length === 0) {
@@ -514,11 +528,9 @@
         document.getElementById("saveStatus").textContent = msg;
       })
       .catch(err => {
-        document.getElementById("saveStatus").textContent = "❌ Failed to save: " + err.message;
+        document.getElementById("saveStatus").textContent = "Failed to save: " + err.message;
       });
     }
-
-
   </script>
 </body>
 </html>
