@@ -226,7 +226,7 @@
 
       try {
         const responses = await Promise.all(requests);
-        console.log("🔍 Raw responses:", responses);
+        console.log(" Raw responses:", responses);
         const endTime = performance.now();
         //4th graph
         const totalTestTime = ((endTime - startTime) / 1000).toFixed(2);
@@ -276,7 +276,7 @@
 
           } else {
             errors++;
-            console.warn("⚠️ Skipped response:", res);
+            console.warn("Skipped response:", res);
           }
         });
 
