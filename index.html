@@ -89,20 +89,11 @@
       <!-- Test logs will go here -->
     </tbody>
   </table>
-  
 
+  <button type="button" onclick="downloadHistory('commercial')">Save Commercial Results</button>
+  <button type="button" onclick="downloadHistory('opensource')">Save Open Source Results</button>
+  <div id="saveStatus" style="font-family: monospace; margin-top: 10px; color: green;"></div>
 
-  <!-- <h2>Graph: π Estimate vs Request</h2>
-  <canvas id="piChart" width="800" height="300"></canvas>
-
-  <h2>Graph: Execution Time vs Request</h2>
-  <canvas id="execChart" width="800" height="300"></canvas>
-
-  <h2>Graph: Error Margin vs Threads</h2>
-  <canvas id="errorChart" width="800" height="300"></canvas>
-
-  <h2>Graph: Total Test Time vs Concurrent Users</h2>
-  <canvas id="scaleChart" width="800" height="300"></canvas> -->
 
   <h2>Graph Dashboard</h2>
   <div class="graph-grid">
@@ -128,9 +119,7 @@
   </div>
   
   </div>
-
-
-
+  
   <script>
     const form = document.getElementById('piForm');
     const resultBox = document.getElementById('result');
@@ -149,8 +138,6 @@
     let scaleChart;
     const scaleLabels = [];
     const scaleData = [];
-
-
 
 
     function increasePoints() {
@@ -203,9 +190,6 @@
       const threads = parseInt(threadsInput.value);
       const concurrent = parseInt(concurrentInput.value);
 
-      // // Save scaling data
-      // scaleLabels.push(concurrent);
-      // scaleData.push(totalTestTime);
       updateCharts(); // this keeps your chart updating
 
       resultBox.textContent = `Running ${concurrent} concurrent requests...If any take longer than 40 seconds, they'll be marked as failed.`;
@@ -498,6 +482,42 @@
           });
       });
     }
+
+    function downloadHistory(type) {
+      const rows = Array.from(document.querySelectorAll("#historyTable tbody tr"));
+      if (rows.length === 0) {
+        alert("No test history to save.");
+        return;
+      }
+
+      const headers = Array.from(document.querySelectorAll("#historyTable thead th"))
+        .map(th => th.textContent).join("\t");
+
+      const data = rows.map(row => 
+        Array.from(row.children).map(cell => cell.textContent).join("\t")
+      ).join("\n");
+
+      const fullText = `${headers}\n${data}`;
+
+      const payload = {
+        type,
+        content: fullText
+      };
+
+      fetch("http://localhost:7071/api/save-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.text())
+      .then(msg => {
+        document.getElementById("saveStatus").textContent = msg;
+      })
+      .catch(err => {
+        document.getElementById("saveStatus").textContent = "❌ Failed to save: " + err.message;
+      });
+    }
+
 
   </script>
 </body>
